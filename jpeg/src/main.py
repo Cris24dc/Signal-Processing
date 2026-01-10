@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import datasets
 from scipy.fft import dctn, idctn
+import cv2
 
 Q = np.array([
     [16, 11, 10, 16, 24, 40, 51, 61],
@@ -127,3 +128,56 @@ plt.title(f"Reconstruit (MSE={final_mse:.2f})")
 
 plt.show()
 plt.imsave("./img/image.jpg", img_final_rgb)
+
+
+def extract_frames(video_path):
+    video = cv2.VideoCapture(video_path)
+    fps = video.get(cv2.CAP_PROP_FPS)
+    frames = []
+    
+    while True:
+        ret, frame = video.read()
+        if not ret:
+            break
+        frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    
+    video.release()
+    return frames, fps
+
+
+def save_video(frames, fps, output_path):
+    if not frames:
+        return
+    
+    height, width, _ = frames[0].shape
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
+    for frame in frames:
+        new_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        out.write(new_frame)
+        
+    out.release()
+
+
+def compress_frame(img_rgb):
+    img_ycbcr = rgb_ycbcr(img_rgb)
+    
+    Y_rec = process_channel(img_ycbcr[:,:,0], Q)
+    Cb_rec = process_channel(img_ycbcr[:,:,1], Q)
+    Cr_rec = process_channel(img_ycbcr[:,:,2], Q)
+    
+    img_rec_ycbcr = np.dstack((Y_rec, Cb_rec, Cr_rec))
+    img_rec_rgb = ycbcr_rgb(img_rec_ycbcr)
+    
+    return img_rec_rgb
+
+
+frames, fps = extract_frames('./img/input_video.mp4')
+processed_frames = []
+
+for i, frame in enumerate(frames):
+    new_frame = compress_frame(frame)
+    processed_frames.append(new_frame)
+
+save_video(processed_frames, fps, './img/output_video.mp4')
